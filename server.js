@@ -90,9 +90,9 @@ ws.on("connection", (socket, request) => {
                 return peer.id == socket.id;
             });
             peer = peer[0];
-            if(peer==undefined){
+        	if(peer==undefined){
                 socket.close();
-                return false;
+        	    return false;
             }
             if(peer.state == "shaking"){
                 if(peer.sharedKey != data.sharedKey){
@@ -137,7 +137,7 @@ ws.on("connection", (socket, request) => {
                     });
                 }
             }
-            
+
         }
     });
 });
