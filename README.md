@@ -1,0 +1,4 @@
+- analytics server for bunker etc stuff
+- i hope it works
+- uhhh
+- burger?
