@@ -5,6 +5,7 @@ class Peer {
 	//slave <--> master config
 	slaves = [];
 	master = null;
+	type = null;
 
 	//height asigns third dimension to network map
 	//height is based on trust interactions, capped at +100, -500
@@ -47,6 +48,7 @@ let caches = {
 	"ids": []
 }
 function updateCache(){
+	fs.writeFileSync(__dirname + "/keys.json", JSON.stringify(db));
 	caches.urls = [];
 	caches.keys = [];
 	caches.ids = [];
@@ -56,12 +58,16 @@ function updateCache(){
 		caches.ids.push(db[i].id);
 	}
 }
+updateCache();
 const ws = new WebSocket.Server({
     noServer: true
 });
 const app = require("express")();
 app.get("/", (req, res) => {
     res.sendFile(__dirname + "/index.html");
+});
+app.get("/status", (req, res) => {
+	res.send(db);
 });
 app.use(require("body-parser").json());
 app.post("/register", (req, res) => {
@@ -79,6 +85,8 @@ app.post("/register", (req, res) => {
 	node.lastConnectDate = new Date().getTime();
 	node.registerDate = new Date().getTime();
 	node.lastConnectedIp = req.ip;
+	node.type = "master";
+	console.log("updated", node);
 	db.push(node);
 	updateCache();
 	res.send({
@@ -112,6 +120,9 @@ ws.on("connection", (socket, req) => {
 			}
 			let key = data.key;
 			let url = data.url;
+			console.log(key, url);
+			console.log(caches);
+			console.log(db);
 			if(!caches.keys.includes(key) || !caches.urls.includes(url)){
 				socket.send(JSON.stringify({
 					type: "error",
@@ -142,6 +153,7 @@ ws.on("connection", (socket, req) => {
 				type: "success",
 				id: node.id
 			}));
+			ping(socket);
 		} else if(data.type == "pong"){
 			if(pingTimeouts[socket.id].time != undefined){
 				let node = db[caches.ids.indexOf(socket.id)];

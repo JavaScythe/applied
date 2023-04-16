@@ -1,24 +1,46 @@
 const axios = require('axios');
 const { createHash } = require('crypto');
 const fs = require("fs");
-let key = fs.readFileSync(__dirname + "/key.pem");
-if(key == ""){
+const WebSocket = require("ws");
+let ws;
+let key = fs.existsSync(__dirname + "/key.pem");
+if(!key){
     key = createHash("sha256").update(Math.random().toString()).digest("hex");
     fs.writeFileSync(__dirname + "/key.pem", key);
     register();
+} else {
+    key = fs.readFileSync(__dirname + "/key.pem", "utf-8");
+    start();
 }
 async function register(){
     try{
-        let id = await axios.post("localhost:3000/register", {
+        let id = await axios.post("http://localhost:3000/register", {
             key: key,
             url: "localhost:3000"
         });
-        if(id.data == "ok"){
-            console.log("Registered");
-        }else{
-            console.log("Error registering");
-        }
+        console.log("Registered");
+        start();
     }catch(e){
-        console.log(e);
+        console.log("failed to register", e);
     }
+}
+async function start(){
+    ws = new WebSocket("ws://localhost:3000");
+    ws.on("open", () => {
+        console.log("Connected to central");
+        ws.send(JSON.stringify({
+            type: "login",
+            key: key,
+            url: "localhost:3000"
+        }));
+    });
+    ws.on("message", (data) => {
+        data = JSON.parse(data);
+        console.log(data);
+        if(data.type == "ping"){
+            ws.send(JSON.stringify({
+                type: "pong"
+            }));
+        }
+    });
 }
