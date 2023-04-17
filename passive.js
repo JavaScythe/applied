@@ -1,6 +1,7 @@
 const WebSocket = require("ws");
 const { createHash } = require('crypto');
 const fs = require("fs");
+const jwt = require("jsonwebtoken");
 class Peer {
 	//slave <--> master config
 	slaves = [];
@@ -41,6 +42,31 @@ class Peer {
 	}
 }
 let pingTimeouts = {};
+let pingService = setInterval(() => {
+	for(let i = 0; i < db.length; i++){
+		let node = db[i];
+		if(node.state == "online"){
+			ws.clients.forEach((client) => {
+				if(client.id == node.id){
+					ping(client)
+				}
+			});
+		}
+	}
+}, 1000);
+let trustTimeouts = {};
+let trustService = setInterval(() => {
+	for(let i = 0; i < db.length; i++){
+		let node = db[i];
+		if(node.state == "online"){
+			ws.clients.forEach((client) => {
+				if(client.id == node.id){
+					trust(client)
+				}
+			});
+		}
+	}
+}, 1000);
 let db = JSON.parse(fs.readFileSync(__dirname + "/keys.json"));
 let caches = {
 	"urls": [],
@@ -107,9 +133,55 @@ function ping(socket){
 		type: "ping"
 	}));
 }
+function trust(socket){
+	let a = Math.floor(Math.random() * 1000);
+	let b = Math.floor(Math.random() * 1000);
+	trustTimeouts[socket.id] = {
+		time: new Date().getTime(),
+		answer: a+b,
+		timeout: setTimeout(() => {
+			let node = db[caches.ids.indexOf(socket.id)];
+			node.state = "offline";
+			delete trustTimeouts[socket.id];
+		}, 10000)
+	};
+	socket.send(JSON.stringify({
+		type: "trust",
+		payload: a+"+"+b
+	}));
+}
 ws.on("connection", (socket, req) => {
 	socket.on("message", (data) => {
-		data = JSON.parse(data);
+		data = data.toString();
+		if(data[0] == "{"){
+			data = JSON.parse(data);
+			if([
+				"pong"
+			].indexOf(data.type) !== -1){
+				socket.send(JSON.stringify({
+					type: "error",
+					error: "type requires signing"
+				}));
+				return false;
+			}
+		} else {
+			try{
+				if(db[caches.ids.indexOf(socket.id)] == undefined){
+					socket.send(JSON.stringify({
+						type: "error",
+						error: "not registered"
+					}));
+					return false;
+				}
+				data = jwt.verify(data, db[caches.ids.indexOf(socket.id)].key);
+			} catch(e){
+				socket.send(JSON.stringify({
+					type: "error",
+					error: "invalid token"
+				}));
+				return false;
+			}
+		}
 		if(data.type == "login"){
 			if(data.key == undefined || data.url == undefined){
 				socket.send(JSON.stringify({
@@ -159,6 +231,7 @@ ws.on("connection", (socket, req) => {
 				let node = db[caches.ids.indexOf(socket.id)];
 				node.lastPingDate = new Date().getTime();
 				node.lastPingTime = new Date().getTime() - pingTimeouts[socket.id].time;
+				console.log("pong", node.lastPingTime);
 				clearTimeout(pingTimeouts[socket.id].timeout);
 				delete pingTimeouts[socket.id];
 			}

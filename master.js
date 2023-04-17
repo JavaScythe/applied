@@ -2,6 +2,7 @@ const axios = require('axios');
 const { createHash } = require('crypto');
 const fs = require("fs");
 const WebSocket = require("ws");
+const jwt = require("jsonwebtoken");
 let ws;
 let key = fs.existsSync(__dirname + "/key.pem");
 if(!key){
@@ -38,9 +39,9 @@ async function start(){
         data = JSON.parse(data);
         console.log(data);
         if(data.type == "ping"){
-            ws.send(JSON.stringify({
+            ws.send(jwt.sign({
                 type: "pong"
-            }));
+            }, key));
         }
     });
 }
