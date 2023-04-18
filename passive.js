@@ -53,7 +53,7 @@ let pingService = setInterval(() => {
 			});
 		}
 	}
-}, 1000);
+}, 10000);
 let trustTimeouts = {};
 let trustService = setInterval(() => {
 	for(let i = 0; i < db.length; i++){
@@ -66,7 +66,8 @@ let trustService = setInterval(() => {
 			});
 		}
 	}
-}, 1000);
+}, 10000);
+clearTimeout(trustService);
 let db = JSON.parse(fs.readFileSync(__dirname + "/keys.json"));
 let caches = {
 	"urls": [],

